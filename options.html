@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Redbook Collect 配置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="images/icon48.png" alt="Logo" class="logo">
+      <h1>Redbook Collect 配置</h1>
+    </div>
+    
+    <div class="card">
+      <div class="form-group">
+        <label for="tableUrl">多维表表格URL</label>
+        <input type="text" id="tableUrl" placeholder="直接粘贴表格 URL 即可">
+        <div class="tip">例如：https://bytesmore.feishu.cn/base/UQxWbiiaSa7oqssbIxLclGeVnrV?table=tblQqWO7UfZ3JNTB</div>
+      </div>
+      
+      <div class="form-group">
+        <label for="appToken">app_token</label>
+        <input type="text" id="appToken" placeholder="填写飞书应用的 app_token">
+        <div class="tip">在飞书应用的设置中获取，教程见<a href="https://open.feishu.cn/document/server-docs/api-call-guide/calling-process/get-access-token">官方文档</a></div>
+      </div>
+      
+      <div class="form-group">
+        <label for="appSecret">app_secret</label>
+        <input type="password" id="appSecret" placeholder="填写飞书应用的app_secret">
+        <div class="tip">请妥善保管你的密钥，不要分享给他人</div>
+      </div>
+      
+      <div class="button-group">
+        <button id="saveConfig" class="primary-button">保存配置</button>
+        <button id="resetConfig" class="secondary-button">重置</button>
+      </div>
+    </div>
+    
+    <div id="statusMessage" class="status-message" style="display: none;"></div>
+    
+    <div class="footer">
+      <p>Redbook Collect - 提取小红书笔记信息写入到飞书多维表格的插件</p>
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>

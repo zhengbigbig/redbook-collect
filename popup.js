@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const saveConfigBtn = document.getElementById('saveConfig');
   const collectBtn = document.getElementById('collectBtn');
   const configBtn = document.getElementById('configBtn');
-  const backBtn = document.getElementById('backBtn');
+  const closeBtn = document.getElementById('closeBtn');
+  const openOptionsPageLink = document.getElementById('openOptionsPage');
   
   // 表单输入
   const tableUrlInput = document.getElementById('tableUrl');
@@ -120,12 +121,18 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 修改配置按钮事件
   configBtn.addEventListener('click', function() {
-    showConfigForm();
+    chrome.runtime.openOptionsPage();
   });
   
-  // 返回按钮事件
-  backBtn.addEventListener('click', function() {
-    showActionPanel();
+  // 关闭按钮事件
+  closeBtn.addEventListener('click', function() {
+    window.close();
+  });
+  
+  // 打开选项页面链接事件
+  openOptionsPageLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
   });
   
   // 初始化界面
