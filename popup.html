@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Redbook Collect</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Redbook Collect</h1>
+    
+    <div id="configForm" style="display: none;">
+      <div class="form-group">
+        <label for="tableUrl">表格 URL</label>
+        <input type="text" id="tableUrl" placeholder="直接粘贴表格 URL 即可">
+      </div>
+      <div class="form-group">
+        <label for="appToken">app_token</label>
+        <input type="text" id="appToken" placeholder="填写飞书应用的 app_token">
+      </div>
+      <div class="form-group">
+        <label for="appSecret">app_secret</label>
+        <input type="text" id="appSecret" placeholder="填写飞书应用的app_secret">
+      </div>
+      <button id="saveConfig">保存配置</button>
+    </div>
+    
+    <div id="actionPanel" style="display: none;">
+      <div id="status" class="status"></div>
+      <button id="collectBtn">采集笔记</button>
+      <button id="configBtn">修改配置</button>
+    </div>
+    
+    <div id="loadingPanel" style="display: none;">
+      <div class="loader"></div>
+      <div id="loadingText">正在处理...</div>
+    </div>
+    
+    <div id="resultPanel" style="display: none;">
+      <div id="resultMessage" class="result-message"></div>
+      <button id="backBtn">返回</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

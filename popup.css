@@ -1,0 +1,119 @@
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f8f8f8;
+}
+
+.container {
+  width: 320px;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 18px;
+  color: #FF2442;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+button {
+  background-color: #FF2442;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 12px;
+}
+
+button:hover {
+  background-color: #E6213C;
+}
+
+#configBtn {
+  background-color: #666;
+  margin-top: 8px;
+}
+
+#configBtn:hover {
+  background-color: #555;
+}
+
+#backBtn {
+  background-color: #666;
+}
+
+#backBtn:hover {
+  background-color: #555;
+}
+
+.status {
+  background-color: #f0f0f0;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.result-message {
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.success {
+  background-color: #e7f7e7;
+  color: #2e7d32;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #FF2442;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#loadingText {
+  text-align: center;
+  color: #666;
+  margin-bottom: 20px;
+}
