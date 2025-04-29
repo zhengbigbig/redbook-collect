@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Redbook Collect</title>
+  <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="images/icon48.png" alt="Logo" class="logo">
+      <h1>Redbook Collect</h1>
+    </div>
+    
+    <div id="configForm" style="display: none;" class="card">
+      <p class="tip-text">请先完成必要的配置，或前往<a href="#" id="openOptionsPage">选项页面</a>进行详细设置</p>
+      <div class="form-group">
+        <label for="tableUrl">表格 URL</label>
+        <input type="text" id="tableUrl" placeholder="直接粘贴表格 URL 即可">
+      </div>
+      <div class="form-group">
+        <label for="appToken">app_token</label>
+        <input type="text" id="appToken" placeholder="填写飞书应用的 app_token">
+      </div>
+      <div class="form-group">
+        <label for="appSecret">app_secret</label>
+        <input type="password" id="appSecret" placeholder="填写飞书应用的app_secret">
+      </div>
+      <button id="saveConfig" class="primary-button">保存配置</button>
+    </div>
+    
+    <div id="actionPanel" style="display: none;" class="card">
+      <div id="status" class="status-text"></div>
+      <div class="form-group">
+        <label for="noteText">批注</label>
+        <input type="text" id="noteText" placeholder="请输入批注内容（可选）">
+      </div>
+      <button id="collectBtn" class="primary-button">采集笔记</button>
+      <button id="configBtn" class="secondary-button">修改配置</button>
+    </div>
+    
+    <div id="loadingPanel" style="display: none;" class="card">
+      <div class="loader-container">
+        <div class="loader"></div>
+      </div>
+      <div id="loadingText" class="loading-text">正在处理...</div>
+    </div>
+    
+    <div id="resultPanel" style="display: none;" class="card">
+      <div id="resultMessage" class="result-message"></div>
+      <button id="closeBtn" class="primary-button">再采一条</button>
+    </div>
+    
+    <div class="footer">
+      <p>提取小红书笔记信息到飞书多维表格</p>
+    </div>
+  </div>
+  
+  <script src="sidebar.js"></script>
+</body>
+</html>

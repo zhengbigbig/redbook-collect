@@ -1,4 +1,9 @@
-// 监听来自popup的消息
+// 当插件图标被点击时，打开侧边栏
+chrome.action.onClicked.addListener((tab) => {
+  chrome.sidePanel.open({tabId: tab.id});
+});
+
+// 监听来自popup或侧边栏的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getFeishuToken') {
     // 获取飞书访问令牌
