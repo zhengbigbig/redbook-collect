@@ -90,8 +90,9 @@ document.addEventListener('DOMContentLoaded', function() {
           showLoadingPanel('正在获取飞书访问令牌...');
           getFeishuToken(config.appToken, config.appSecret)
             .then(token => {
-              // 获取批注内容
+              // 获取批注内容和关键词内容
               const noteText = document.getElementById('noteText').value.trim();
+              const keywordText = document.getElementById('keywordText').value.trim();
               
               // 构建请求数据
               showLoadingPanel('正在提交数据到飞书...');
@@ -105,7 +106,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   "点赞": response.data.likes,
                   "收藏": response.data.collects,
                   "评论": response.data.comments,
-                  "批注": noteText // 添加批注字段
+                  "批注": noteText, // 添加批注字段
+                  "关键词": keywordText // 添加关键词字段
                 }
               };
               
