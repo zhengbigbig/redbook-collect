@@ -3,7 +3,7 @@
   "name": "Redbook Collect",
   "version": "1.0",
   "description": "一个提取小红书笔记信息写入到飞书多维表格的插件",
-  "permissions": ["activeTab", "storage", "scripting", "tabs", "sidePanel"],
+  "permissions": ["activeTab", "storage", "sidePanel"],
   "host_permissions": ["https://open.feishu.cn/*"],
   "action": {
     "default_icon": {
