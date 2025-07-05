@@ -121,43 +121,57 @@ async function extractImages() {
   const imageUrls = [];
   
   try {
-    // 【关键修复】按照您指定的DOM结构顺序提取图片
+    // 【关键修复】按照data-index属性值排序提取图片
     // 查询：.swiper .swiper-wrapper 下所有子节点的 .swiper-slide .img-container img
     const swiperWrapper = document.querySelector('.swiper .swiper-wrapper');
     
     if (swiperWrapper) {
       console.log('找到轮播容器 .swiper .swiper-wrapper');
       
-      // 获取所有直接子节点（保持DOM顺序）
-      const childNodes = Array.from(swiperWrapper.children);
-      console.log('轮播容器子节点数量:', childNodes.length);
+      // 获取所有swiper-slide节点
+      const slideElements = Array.from(swiperWrapper.querySelectorAll('.swiper-slide'));
+      console.log('轮播容器中的swiper-slide数量:', slideElements.length);
       
-      // 按照DOM顺序遍历每个子节点
-      childNodes.forEach((childNode, index) => {
-        // 检查是否是 swiper-slide
-        if (childNode.classList && childNode.classList.contains('swiper-slide')) {
-          // 在 swiper-slide 中查找 .img-container img
-          const img = childNode.querySelector('.img-container img');
-          
-          if (img) {
-            const src = img.src || img.getAttribute('src');
-            if (src && !imageUrls.includes(src)) {
-              // 提取原图URL，去掉缩略图后缀
-              const originalUrl = src.replace(/!.*$/, '');
-              imageUrls.push(originalUrl);
-              console.log(`图片${index + 1} (DOM顺序第${index + 1}个子节点):`, originalUrl);
-              console.log(`  - 节点类名:`, childNode.className);
-              console.log(`  - 图片路径:`, img.src);
-            }
-          } else {
-            console.log(`第${index + 1}个swiper-slide中未找到 .img-container img`);
+      // 【关键修复】按照data-index属性值排序
+      const slidesWithIndex = slideElements.map(slide => {
+        const dataIndex = slide.getAttribute('data-index');
+        const index = dataIndex ? parseInt(dataIndex) : 999; // 没有data-index的放到最后
+        return {
+          slide: slide,
+          index: index,
+          dataIndex: dataIndex
+        };
+      }).sort((a, b) => a.index - b.index); // 按data-index从小到大排序
+      
+      console.log('排序后的slide信息:');
+      slidesWithIndex.forEach((item, i) => {
+        console.log(`  ${i + 1}. data-index="${item.dataIndex}" (排序值: ${item.index})`);
+      });
+      
+      // 按照排序后的顺序提取图片
+      slidesWithIndex.forEach((item, index) => {
+        const slide = item.slide;
+        const dataIndex = item.dataIndex;
+        
+        // 在 swiper-slide 中查找 .img-container img
+        const img = slide.querySelector('.img-container img');
+        
+        if (img) {
+          const src = img.src || img.getAttribute('src');
+          if (src && !imageUrls.includes(src)) {
+            // 提取原图URL，去掉缩略图后缀
+            const originalUrl = src.replace(/!.*$/, '');
+            imageUrls.push(originalUrl);
+            console.log(`图片${index + 1} (data-index="${dataIndex}"):`, originalUrl);
+            console.log(`  - 节点类名:`, slide.className);
+            console.log(`  - 图片路径:`, img.src);
           }
         } else {
-          console.log(`第${index + 1}个子节点不是swiper-slide:`, childNode.className || childNode.tagName);
+          console.log(`data-index="${dataIndex}"的swiper-slide中未找到 .img-container img`);
         }
       });
       
-      console.log(`通过新方法提取到 ${imageUrls.length} 张图片`);
+      console.log(`通过data-index排序方法提取到 ${imageUrls.length} 张图片`);
     } else {
       console.log('未找到 .swiper .swiper-wrapper 容器');
     }
@@ -170,8 +184,28 @@ async function extractImages() {
       if (slideElements.length > 0) {
         console.log('通过备用方案1找到轮播图元素:', slideElements.length, '张');
         
-        // 【关键修复】按照slide的顺序遍历，确保提取顺序正确
-        slideElements.forEach((slide, index) => {
+        // 【关键修复】也按照data-index排序
+        const slidesArray = Array.from(slideElements);
+        const slidesWithIndex = slidesArray.map(slide => {
+          const dataIndex = slide.getAttribute('data-index');
+          const index = dataIndex ? parseInt(dataIndex) : 999;
+          return {
+            slide: slide,
+            index: index,
+            dataIndex: dataIndex
+          };
+        }).sort((a, b) => a.index - b.index);
+        
+        console.log('备用方案1排序后的slide信息:');
+        slidesWithIndex.forEach((item, i) => {
+          console.log(`  ${i + 1}. data-index="${item.dataIndex}" (排序值: ${item.index})`);
+        });
+        
+        // 按照排序后的顺序提取图片
+        slidesWithIndex.forEach((item, index) => {
+          const slide = item.slide;
+          const dataIndex = item.dataIndex;
+          
           // 优先从img元素中提取
           const img = slide.querySelector('.img-container img') || slide.querySelector('img');
           if (img) {
@@ -180,7 +214,7 @@ async function extractImages() {
               // 提取原图URL，去掉缩略图后缀
               const originalUrl = src;
               imageUrls.push(originalUrl);
-              console.log(`图片${index + 1} (从img元素):`, originalUrl);
+              console.log(`图片${index + 1} (data-index="${dataIndex}", 从img元素):`, originalUrl);
               return; // 找到img就不需要再检查background
             }
           }
@@ -193,7 +227,7 @@ async function extractImages() {
               // 提取原图URL，去掉缩略图后缀
               const originalUrl = urlMatch[1].replace(/!.*$/, '');
               imageUrls.push(originalUrl);
-              console.log(`图片${index + 1} (从背景样式):`, originalUrl);
+              console.log(`图片${index + 1} (data-index="${dataIndex}", 从背景样式):`, originalUrl);
             }
           }
         });
@@ -205,14 +239,36 @@ async function extractImages() {
       console.log('尝试备用方案2: .swiper-wrapper .swiper-slide img.note-slider-img');
       const fallbackImgElements = document.querySelectorAll('.swiper-wrapper .swiper-slide img.note-slider-img');
       
-      fallbackImgElements.forEach((img, index) => {
-        const src = img.src || img.getAttribute('src');
-        if (src && !imageUrls.includes(src)) {
-          const originalUrl = src.replace(/!.*$/, '');
-          imageUrls.push(originalUrl);
-          console.log(`兼容模式图片${index + 1}:`, originalUrl);
-        }
-      });
+      if (fallbackImgElements.length > 0) {
+        // 也尝试按data-index排序
+        const imgElementsArray = Array.from(fallbackImgElements);
+        const imgsWithIndex = imgElementsArray.map(img => {
+          const slide = img.closest('.swiper-slide');
+          const dataIndex = slide ? slide.getAttribute('data-index') : null;
+          const index = dataIndex ? parseInt(dataIndex) : 999;
+          return {
+            img: img,
+            index: index,
+            dataIndex: dataIndex
+          };
+        }).sort((a, b) => a.index - b.index);
+        
+        console.log('备用方案2排序后的图片信息:');
+        imgsWithIndex.forEach((item, i) => {
+          console.log(`  ${i + 1}. data-index="${item.dataIndex}" (排序值: ${item.index})`);
+        });
+        
+        imgsWithIndex.forEach((item, index) => {
+          const img = item.img;
+          const dataIndex = item.dataIndex;
+          const src = img.src || img.getAttribute('src');
+          if (src && !imageUrls.includes(src)) {
+            const originalUrl = src.replace(/!.*$/, '');
+            imageUrls.push(originalUrl);
+            console.log(`兼容模式图片${index + 1} (data-index="${dataIndex}"):`, originalUrl);
+          }
+        });
+      }
     }
     
     // 备用方案3: 通用方案 - 从所有小红书CDN图片中提取（最后的备用方案）
