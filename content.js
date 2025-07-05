@@ -121,28 +121,28 @@ async function extractImages() {
   const imageUrls = [];
   
   try {
-    // 方法1: 根据正确的层级结构提取图片 - slider-container swiper-slide img-container img
-    const imgElements = document.querySelectorAll('.slider-container .swiper-slide .img-container img');
+    // 方法1: 根据正确的层级结构提取图片 - 按swiper-slide的顺序提取
+    const slideElements = document.querySelectorAll('.slider-container .swiper-slide');
     
-    if (imgElements.length > 0) {
-      console.log('通过方法1找到图片元素:', imgElements.length, '张');
-      imgElements.forEach((img, index) => {
-        const src = img.src || img.getAttribute('src');
-        if (src && !imageUrls.includes(src)) {
-          // 提取原图URL，去掉缩略图后缀
-          const originalUrl = src;
-          imageUrls.push(originalUrl);
-          console.log(`图片${index + 1}:`, originalUrl);
-        }
-      });
-    }
-    
-    // 方法2: 备用方案 - 从轮播图的背景样式中提取
-    if (imageUrls.length === 0) {
-      console.log('方法1未找到图片，尝试方法2');
-      const slideElements = document.querySelectorAll('.slider-container .swiper-slide');
+    if (slideElements.length > 0) {
+      console.log('通过方法1找到轮播图元素:', slideElements.length, '张');
       
+      // 【关键修复】按照slide的顺序遍历，确保提取顺序正确
       slideElements.forEach((slide, index) => {
+        // 优先从img元素中提取
+        const img = slide.querySelector('.img-container img') || slide.querySelector('img');
+        if (img) {
+          const src = img.src || img.getAttribute('src');
+          if (src && !imageUrls.includes(src)) {
+            // 提取原图URL，去掉缩略图后缀
+            const originalUrl = src;
+            imageUrls.push(originalUrl);
+            console.log(`图片${index + 1} (从img元素):`, originalUrl);
+            return; // 找到img就不需要再检查background
+          }
+        }
+        
+        // 如果没有img元素，尝试从背景样式中提取
         const style = slide.getAttribute('style');
         if (style) {
           const urlMatch = style.match(/url\("([^"]+)"\)/);
@@ -150,15 +150,15 @@ async function extractImages() {
             // 提取原图URL，去掉缩略图后缀
             const originalUrl = urlMatch[1].replace(/!.*$/, '');
             imageUrls.push(originalUrl);
-            console.log(`背景图片${index + 1}:`, originalUrl);
+            console.log(`图片${index + 1} (从背景样式):`, originalUrl);
           }
         }
       });
     }
     
-    // 方法3: 兼容旧版本选择器（如果前面都失败）
+    // 方法2: 备用方案 - 如果方法1没有找到图片，尝试其他选择器
     if (imageUrls.length === 0) {
-      console.log('方法2未找到图片，尝试方法3（兼容旧版本）');
+      console.log('方法1未找到图片，尝试方法2（兼容旧版本）');
       const fallbackImgElements = document.querySelectorAll('.swiper-wrapper .swiper-slide img.note-slider-img');
       
       fallbackImgElements.forEach((img, index) => {
@@ -171,7 +171,7 @@ async function extractImages() {
       });
     }
     
-    // 方法4: 通用方案 - 从所有小红书CDN图片中提取（最后的备用方案）
+    // 方法3: 通用方案 - 从所有小红书CDN图片中提取（最后的备用方案）
     if (imageUrls.length === 0) {
       console.log('前面方法都未找到图片，尝试通用方案');
       const allImages = document.querySelectorAll('img[src*="xhscdn.com"]');
@@ -188,6 +188,7 @@ async function extractImages() {
       });
     }
     
+    console.log('📋 最终提取到的图片URLs顺序:', imageUrls.map((url, index) => `${index + 1}. ${url.split('/').pop()}`));
     console.log('提取到的图片URLs:', imageUrls);
     return imageUrls;
     
@@ -250,58 +251,27 @@ async function extractImageBlobs(imageUrls) {
         
       } else {
         console.error(`❌ 第${i + 1}张图片加载失败`);
-        
-        // 【关键】即使图片加载失败，也要记录失败信息，保持顺序
-        imageBlobs.push({
-          data: null,
-          type: 'image/jpeg',
-          size: 0,
-          filename: `image_${i + 1}_failed.jpg`,
-          originalUrl: imageUrls[i],
-          originalIndex: i,
-          processOrder: i + 1,
-          failed: true,
-          error: '图片加载失败'
-        });
-        
-        console.log(`⚠️ 第${i + 1}张图片加载失败，但保持在数组中的位置`);
+        console.log(`⚠️ 第${i + 1}张图片加载失败，跳过此图片但继续处理下一张`);
+        // 【修复】失败的图片不添加到数组中，但继续处理下一张，保持成功图片的相对顺序
       }
       
     } catch (error) {
       console.error(`❌ 提取第${i + 1}张图片失败:`, error);
-      
-      // 【关键】记录失败信息，保持顺序
-      imageBlobs.push({
-        data: null,
-        type: 'image/jpeg',
-        size: 0,
-        filename: `image_${i + 1}_error.jpg`,
-        originalUrl: imageUrls[i],
-        originalIndex: i,
-        processOrder: i + 1,
-        failed: true,
-        error: error.message
-      });
-      
-      console.log(`⚠️ 第${i + 1}张图片处理异常，但保持在数组中的位置`);
-      // 继续处理下一张图片，不中断整个流程
+      console.log(`⚠️ 第${i + 1}张图片处理异常，跳过此图片但继续处理下一张`);
+      // 【修复】异常的图片不添加到数组中，但继续处理下一张，保持成功图片的相对顺序
     }
   }
   
   // 【调试】打印最终的图片顺序
   console.log('\n📋 最终图片提取顺序验证:');
   imageBlobs.forEach((blob, index) => {
-    const status = blob.failed ? '❌ 失败' : '✅ 成功';
-    console.log(`${index + 1}. ${blob.filename} - ${status} (原始位置: ${blob.originalIndex + 1})`);
+    console.log(`${index + 1}. ${blob.filename} - ✅ 成功 (原始位置: ${blob.originalIndex + 1})`);
   });
   
-  // 过滤掉失败的图片，只返回成功的
-  const successfulBlobs = imageBlobs.filter(blob => !blob.failed);
+  console.log(`\n📊 图片提取完成统计: ${imageBlobs.length}/${imageUrls.length} 张图片成功提取`);
   
-  console.log(`\n📊 图片提取完成统计: ${successfulBlobs.length}/${imageUrls.length} 张图片成功提取`);
-  
-  // 【关键】返回成功的图片，但保持原有顺序
-  return successfulBlobs;
+  // 【关键修复】直接返回成功的图片数组，由于我们是按顺序处理的，所以成功的图片仍然保持原有的相对顺序
+  return imageBlobs;
 }
 
 // 【新增】将Blob转换为Base64的辅助函数

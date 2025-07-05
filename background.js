@@ -144,18 +144,8 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
           
         } catch (error) {
           console.error(`❌ 处理第${i + 1}张图片失败:`, error);
-          
-          // 【关键】即使某张图片失败，也要在附件数组中保持位置占位，确保顺序不乱
-          imageAttachments.push({
-            file_token: null,
-            originalIndex: i,
-            filename: imageBlobs[i].filename,
-            originalUrl: imageBlobs[i].originalUrl,
-            error: error.message,
-            failed: true
-          });
-          
-          console.log(`⚠️ 第${i + 1}张图片处理失败，但保持在附件数组中的位置`);
+          console.log(`⚠️ 第${i + 1}张图片处理失败，跳过此图片但继续处理下一张`);
+          // 【修复】失败的图片不添加到附件数组中，保持成功图片的相对顺序
           // 继续处理下一张图片，不中断整个流程
         }
       }
@@ -167,14 +157,20 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
         console.log(`${index + 1}. ${attachment.filename} - ${status} (原始位置: ${attachment.originalIndex + 1})`);
       });
       
-      // 过滤掉失败的图片，只保留成功上传的
+      // 【修复】过滤掉失败的图片，只保留成功上传的，但保持原有顺序
       const successfulAttachments = imageAttachments.filter(attachment => !attachment.failed);
       console.log(`\n📊 上传结果统计: ${successfulAttachments.length}/${imageBlobs.length} 张图片成功上传`);
       
-      // 只保留file_token字段用于飞书API
+      // 【关键修复】确保最终的附件数组保持原有顺序
       imageAttachments = successfulAttachments.map(attachment => ({
         file_token: attachment.file_token
       }));
+      
+      // 【调试】打印最终附件的file_token顺序
+      console.log('\n📋 最终附件file_token顺序:');
+      imageAttachments.forEach((attachment, index) => {
+        console.log(`${index + 1}. file_token: ${attachment.file_token}`);
+      });
     }
     
     // 将图片附件添加到数据中
