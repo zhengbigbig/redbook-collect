@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const tableUrlInput = document.getElementById('tableUrl');
   const appTokenInput = document.getElementById('appToken');
   const appSecretInput = document.getElementById('appSecret');
+  const parentNodeInput = document.getElementById('parentNode');
   const saveConfigBtn = document.getElementById('saveConfig');
   const resetConfigBtn = document.getElementById('resetConfig');
   const statusMessage = document.getElementById('statusMessage');
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableUrl = tableUrlInput.value.trim();
     const appToken = appTokenInput.value.trim();
     const appSecret = appSecretInput.value.trim();
+    const parentNode = parentNodeInput.value.trim();
     
     if (!tableUrl || !appToken || !appSecret) {
       showStatus('请填写所有必要的配置信息', false);
@@ -30,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tableUrl: tableUrl,
         appToken: appToken,
         appSecret: appSecret,
+        parentNode: parentNode,
         baseAppToken: urlParams.appToken,
         tableId: urlParams.tableId
       }, function() {
@@ -45,15 +48,17 @@ document.addEventListener('DOMContentLoaded', function() {
     tableUrlInput.value = '';
     appTokenInput.value = '';
     appSecretInput.value = '';
+    parentNodeInput.value = '';
     statusMessage.style.display = 'none';
   });
   
   // 加载已保存的配置
   function loadSavedConfig() {
-    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret'], function(config) {
+    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret', 'parentNode'], function(config) {
       tableUrlInput.value = config.tableUrl || '';
       appTokenInput.value = config.appToken || '';
       appSecretInput.value = config.appSecret || '';
+      parentNodeInput.value = config.parentNode || '';
     });
   }
   

@@ -2,14 +2,14 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Redbook Collect 配置</title>
+  <title>小红书笔记收集 配置</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <div class="container">
     <div class="header">
       <img src="images/icon48.png" alt="Logo" class="logo">
-      <h1>Redbook Collect 配置</h1>
+      <h1>小红书笔记收集 配置</h1>
     </div>
     
     <div class="card">
@@ -31,6 +31,12 @@
         <div class="tip">请妥善保管你的密钥，不要分享给他人</div>
       </div>
       
+      <div class="form-group">
+        <label for="parentNode">多维表格 Token (parent_node)</label>
+        <input type="text" id="parentNode" placeholder="填写多维表格的 parent_node token (可选)">
+        <div class="tip">用于图片上传时指定存储位置，通常可以从多维表格URL中提取，留空将使用默认设置</div>
+      </div>
+      
       <div class="button-group">
         <button id="saveConfig" class="primary-button">保存配置</button>
         <button id="resetConfig" class="secondary-button">重置</button>
@@ -40,7 +46,7 @@
     <div id="statusMessage" class="status-message" style="display: none;"></div>
     
     <div class="footer">
-      <p>Redbook Collect - 提取小红书笔记信息写入到飞书多维表格的插件</p>
+      <p>小红书笔记收集 - 提取小红书笔记信息写入到飞书多维表格的插件</p>
     </div>
   </div>
   

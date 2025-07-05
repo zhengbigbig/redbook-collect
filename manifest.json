@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Redbook Collect",
-  "version": "1.0",
+  "name": "小红书笔记收集",
+  "version": "1.1",
   "description": "一个提取小红书笔记信息写入到飞书多维表格的插件",
   "permissions": ["activeTab", "storage", "sidePanel"],
-  "host_permissions": ["https://open.feishu.cn/*"],
+  "host_permissions": [
+    "https://open.feishu.cn/*",
+    "https://sns-webpic-qc.xhscdn.com/*",
+    "https://sns-webpic-qc-2.xhscdn.com/*",
+    "https://sns-img-hw.xhscdn.com/*",
+    "https://sns-img-qc.xhscdn.com/*",
+    "https://*.xhscdn.com/*"
+  ],
   "action": {
     "default_icon": {
       "16": "images/icon16.png",

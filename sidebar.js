@@ -13,11 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const configBtn = document.getElementById('configBtn');
   const closeBtn = document.getElementById('closeBtn');
   const openOptionsPageLink = document.getElementById('openOptionsPage');
+  const useLastParamsBtn = document.getElementById('useLastParamsBtn');
   
   // 表单输入
   const tableUrlInput = document.getElementById('tableUrl');
   const appTokenInput = document.getElementById('appToken');
   const appSecretInput = document.getElementById('appSecret');
+  const parentNodeInput = document.getElementById('parentNode');
+  const categoryInput = document.getElementById('categoryInput');
   
   // 初始化界面
   initializeUI();
@@ -27,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableUrl = tableUrlInput.value.trim();
     const appToken = appTokenInput.value.trim();
     const appSecret = appSecretInput.value.trim();
+    const parentNode = parentNodeInput.value.trim();
     
     if (!tableUrl || !appToken || !appSecret) {
       showResult('请填写所有必要的配置信息', false);
@@ -42,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tableUrl: tableUrl,
         appToken: appToken,
         appSecret: appSecret,
+        parentNode: parentNode,
         baseAppToken: urlParams.appToken,
         tableId: urlParams.tableId
       }, function() {
@@ -54,11 +59,25 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 采集按钮事件
   collectBtn.addEventListener('click', function() {
+    // 在采集前保存当前参数
+    const currentParams = {
+      category: document.getElementById('categoryInput').value.trim(),
+      note: document.getElementById('noteText').value.trim(),
+      keyword: document.getElementById('keywordText').value.trim()
+    };
+    
+    // 保存到本地存储
+    chrome.storage.local.set({
+      lastParams: currentParams
+    });
+    
     showLoadingPanel('正在检查页面...');
     
     // 获取当前活动标签页
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, {action: "checkAndCollect"}, function(response) {
+      const currentTab = tabs[0];
+      
+      chrome.tabs.sendMessage(currentTab.id, {action: "checkAndCollect"}, function(response) {
         if (chrome.runtime.lastError) {
           showResult('无法与页面通信，请确保您正在浏览小红书笔记页面', false);
           return;
@@ -75,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 获取配置信息
-        chrome.storage.sync.get(['appToken', 'appSecret', 'baseAppToken', 'tableId'], function(config) {
+        chrome.storage.sync.get(['appToken', 'appSecret', 'baseAppToken', 'tableId', 'parentNode'], function(config) {
           if (chrome.runtime.lastError) {
             showResult('获取配置信息失败', false);
             return;
@@ -90,12 +109,42 @@ document.addEventListener('DOMContentLoaded', function() {
           showLoadingPanel('正在获取飞书访问令牌...');
           getFeishuToken(config.appToken, config.appSecret)
             .then(token => {
+              // 先检查是否有重复URL
+              showLoadingPanel('正在检查是否已采集过...');
+              return checkDuplicateUrl(config.baseAppToken, config.tableId, token, response.data.url)
+                .then(duplicateResult => {
+                  if (duplicateResult.isDuplicate) {
+                    // 发现重复URL，显示确认对话框
+                    return showDuplicateConfirmDialog()
+                      .then(shouldContinue => {
+                        if (shouldContinue) {
+                          // 用户选择继续采集
+                          return { token, shouldContinue: true };
+                        } else {
+                          // 用户选择取消采集
+                          return { token, shouldContinue: false };
+                        }
+                      });
+                  } else {
+                    // 没有重复URL，继续采集
+                    return { token, shouldContinue: true };
+                  }
+                });
+            })
+            .then(result => {
+              if (!result.shouldContinue) {
+                // 用户选择不继续采集
+                showActionPanel('已取消采集');
+                return;
+              }
+              
+              const token = result.token;
+              
               // 获取批注内容和关键词内容
               const noteText = document.getElementById('noteText').value.trim();
               const keywordText = document.getElementById('keywordText').value.trim();
               
               // 构建请求数据
-              showLoadingPanel('正在提交数据到飞书...');
               const requestData = {
                 fields: {
                   "url": response.data.url,
@@ -107,21 +156,98 @@ document.addEventListener('DOMContentLoaded', function() {
                   "收藏": response.data.collects,
                   "评论": response.data.comments,
                   "批注": noteText, // 添加批注字段
-                  "关键词": keywordText // 添加关键词字段
+                  "关键词": keywordText, // 添加关键词字段
+                  "分类": categoryInput.value
                 }
               };
               
-              // 提交数据到飞书
-              return submitToFeishu(config.baseAppToken, config.tableId, token, requestData);
-            })
-            .then(result => {
-              showResult('数据已成功提交到飞书多维表格', true);
+              // 检查是否有图片需要处理
+              if (response.data.images && response.data.images.length > 0) {
+                showLoadingPanel(`正在提取图片数据 (共${response.data.images.length}张)...`);
+                
+                // 先在content script中提取图片blob数据
+                chrome.tabs.sendMessage(currentTab.id, {
+                  action: "extractImageBlobs",
+                  imageUrls: response.data.images
+                }, function(blobResponse) {
+                  if (chrome.runtime.lastError) {
+                    showResult('图片数据提取失败: ' + chrome.runtime.lastError.message, false);
+                    return;
+                  }
+                  
+                  if (!blobResponse || !blobResponse.success) {
+                    showResult('图片数据提取失败: ' + (blobResponse ? blobResponse.error : '未知错误'), false);
+                    return;
+                  }
+                  
+                  showLoadingPanel(`正在上传图片到飞书 (共${blobResponse.imageBlobs.length}张)...`);
+                  
+                  // 使用新的图片Blob处理方法，传递parentNode
+                  processImageBlobsAndSubmitToFeishu(
+                    config.baseAppToken, 
+                    config.tableId, 
+                    token, 
+                    requestData, 
+                    blobResponse.imageBlobs,
+                    config.parentNode // 传递parentNode配置
+                  )
+                  .then(result => {
+                    let message = '数据已成功提交到飞书多维表格';
+                    
+                    // 如果处理了图片，显示图片处理结果
+                    if (result?.processedImages !== undefined) {
+                      message += `\n图片处理结果: ${result.processedImages}/${result.totalImages} 张上传成功`;
+                    }
+                    
+                    // 更新按钮状态
+                    useLastParamsBtn.disabled = false;
+                    useLastParamsBtn.textContent = '使用上一次参数';
+                    
+                    showResult(message, true);
+                  })
+                  .catch(error => {
+                    showResult('提交数据失败: ' + error.message, false);
+                  });
+                });
+              } else {
+                // 没有图片，直接提交数据
+                showLoadingPanel('正在提交数据到飞书...');
+                submitToFeishu(config.baseAppToken, config.tableId, token, requestData)
+                  .then(result => {
+                    // 更新按钮状态
+                    useLastParamsBtn.disabled = false;
+                    useLastParamsBtn.textContent = '使用上一次参数';
+                    
+                    showResult('数据已成功提交到飞书多维表格', true);
+                  })
+                  .catch(error => {
+                    showResult('提交数据失败: ' + error.message, false);
+                  });
+              }
             })
             .catch(error => {
-              showResult('提交数据失败: ' + error.message, false);
+              showResult('获取飞书访问令牌失败: ' + error.message, false);
             });
         });
       });
+    });
+  });
+  
+  // 使用上一次参数按钮事件
+  useLastParamsBtn.addEventListener('click', function() {
+    chrome.storage.local.get(['lastParams'], function(result) {
+      if (result.lastParams) {
+        // 回填上一次的参数
+        document.getElementById('categoryInput').value = result.lastParams.category || '';
+        document.getElementById('noteText').value = result.lastParams.note || '';
+        document.getElementById('keywordText').value = result.lastParams.keyword || '';
+        
+        // 显示提示信息
+        showActionPanel('已回填上一次使用的参数');
+      } else {
+        // 没有保存的参数
+        showActionPanel('没有找到上一次使用的参数');
+      }
     });
   });
   
@@ -132,6 +258,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 关闭按钮事件
   closeBtn.addEventListener('click', function() {
+    // 清空表单内容
+    document.getElementById('categoryInput').value = '';
+    document.getElementById('noteText').value = '';
+    document.getElementById('keywordText').value = '';
+    
     showActionPanel(''); // 返回到操作面板
   });
   
@@ -143,13 +274,26 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 初始化界面
   function initializeUI() {
-    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret'], function(config) {
+    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret', 'parentNode'], function(config) {
       if (config.tableUrl && config.appToken && config.appSecret) {
         // 已有配置，显示操作面板
         tableUrlInput.value = config.tableUrl || '';
         appTokenInput.value = config.appToken || '';
         appSecretInput.value = config.appSecret || '';
-        showActionPanel('配置已完成，可以开始采集笔记');
+        parentNodeInput.value = config.parentNode || '';
+        
+        // 检查是否有上一次的参数
+        chrome.storage.local.get(['lastParams'], function(result) {
+          if (result.lastParams) {
+            showActionPanel('配置已完成，可以开始采集笔记');
+            useLastParamsBtn.disabled = false;
+            useLastParamsBtn.textContent = '使用上一次参数';
+          } else {
+            showActionPanel('配置已完成，可以开始采集笔记');
+            useLastParamsBtn.disabled = true;
+            useLastParamsBtn.textContent = '暂无历史参数';
+          }
+        });
       } else {
         // 无配置，显示配置表单
         showConfigForm();
@@ -165,10 +309,11 @@ document.addEventListener('DOMContentLoaded', function() {
     resultPanel.style.display = 'none';
     
     // 加载已保存的配置
-    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret'], function(config) {
+    chrome.storage.sync.get(['tableUrl', 'appToken', 'appSecret', 'parentNode'], function(config) {
       tableUrlInput.value = config.tableUrl || '';
       appTokenInput.value = config.appToken || '';
       appSecretInput.value = config.appSecret || '';
+      parentNodeInput.value = config.parentNode || '';
     });
   }
   
@@ -278,6 +423,106 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       );
+    });
+  }
+  
+  // 处理图片Blob数据并提交数据到飞书
+  function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken, data, imageBlobs, parentNode) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'processImageBlobsAndSubmit',
+          appToken: appToken,
+          tableId: tableId,
+          accessToken: accessToken,
+          data: data,
+          imageBlobs: imageBlobs,
+          parentNode: parentNode
+        },
+        response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error('通信错误: ' + chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (response.success) {
+            resolve(response.result);
+          } else {
+            reject(new Error(response.error || '处理图片Blob数据和提交数据失败'));
+          }
+        }
+      );
+    });
+  }
+  
+  // 检查是否有重复URL
+  function checkDuplicateUrl(appToken, tableId, accessToken, url) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'checkDuplicateUrl',
+          appToken: appToken,
+          tableId: tableId,
+          accessToken: accessToken,
+          url: url
+        },
+        response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error('通信错误: ' + chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (response.success) {
+            resolve(response.result);
+          } else {
+            reject(new Error(response.error || '检查重复URL失败'));
+          }
+        }
+      );
+    });
+  }
+  
+  // 显示重复URL确认对话框
+  function showDuplicateConfirmDialog() {
+    return new Promise((resolve) => {
+      const dialog = document.createElement('div');
+      dialog.className = 'confirm-dialog';
+      dialog.innerHTML = `
+        <div class="confirm-content">
+          <h2>⚠️ 重复提醒</h2>
+          <p>已采集过，是否继续采集？</p>
+          <div class="button-group">
+            <button class="confirm-no">取消采集</button>
+            <button class="confirm-yes">继续采集</button>
+          </div>
+        </div>
+      `;
+      
+      // 添加到body
+      document.body.appendChild(dialog);
+      
+      // 获取按钮元素
+      const confirmYes = dialog.querySelector('.confirm-yes');
+      const confirmNo = dialog.querySelector('.confirm-no');
+      
+      // 绑定事件
+      confirmYes.addEventListener('click', function() {
+        document.body.removeChild(dialog);
+        resolve(true);
+      });
+      
+      confirmNo.addEventListener('click', function() {
+        document.body.removeChild(dialog);
+        resolve(false);
+      });
+      
+      // 点击背景关闭对话框（默认取消）
+      dialog.addEventListener('click', function(e) {
+        if (e.target === dialog) {
+          document.body.removeChild(dialog);
+          resolve(false);
+        }
+      });
     });
   }
 });

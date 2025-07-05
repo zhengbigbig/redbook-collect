@@ -2,14 +2,14 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Redbook Collect</title>
+  <title>小红书笔记收集</title>
   <link rel="stylesheet" href="sidebar.css">
 </head>
 <body>
   <div class="container">
     <div class="header">
       <img src="images/icon48.png" alt="Logo" class="logo">
-      <h1>Redbook Collect</h1>
+      <h1>小红书笔记收集</h1>
     </div>
     
     <div id="configForm" style="display: none;" class="card">
@@ -26,11 +26,20 @@
         <label for="appSecret">app_secret</label>
         <input type="password" id="appSecret" placeholder="填写飞书应用的app_secret">
       </div>
+      <div class="form-group">
+        <label for="parentNode">多维表格 Token (parent_node)</label>
+        <input type="text" id="parentNode" placeholder="填写多维表格的 parent_node token">
+        <small class="input-hint">用于图片上传时指定存储位置，可在多维表格URL中找到</small>
+      </div>
       <button id="saveConfig" class="primary-button">保存配置</button>
     </div>
     
     <div id="actionPanel" style="display: none;" class="card">
       <div id="status" class="status-text"></div>
+      <div class="form-group">
+        <label for="categoryInput">分类</label>
+        <input type="text" id="categoryInput" placeholder="请输入分类（可选）">
+      </div>
       <div class="form-group">
         <label for="noteText">批注</label>
         <input type="text" id="noteText" placeholder="请输入批注内容（可选）">
@@ -39,8 +48,11 @@
         <label for="keywordText">关键词</label>
         <input type="text" id="keywordText" placeholder="请输入关键词（可选）">
       </div>
-      <button id="collectBtn" class="primary-button">采集笔记</button>
-      <button id="configBtn" class="secondary-button">修改配置</button>
+      <div class="button-group">
+        <button id="useLastParamsBtn" class="secondary-button half-width">使用上一次参数</button>
+        <button id="collectBtn" class="primary-button half-width">采集笔记</button>
+      </div>
+      <button id="configBtn" class="secondary-button full-width">修改配置</button>
     </div>
     
     <div id="loadingPanel" style="display: none;" class="card">
