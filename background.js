@@ -84,86 +84,98 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
       console.log('开始处理图片Base64数据，共', imageBlobs.length, '张');
       console.log('📋 图片处理顺序:', imageBlobs.map((blob, index) => `${index + 1}. ${blob.filename}`));
       
-      // 【关键修改】确保图片按顺序处理和上传
-      for (let i = 0; i < imageBlobs.length; i++) {
+      // 【关键修改】使用Promise.all并发上传图片，但保持顺序
+      console.log('🚀 开始并发上传图片到飞书...');
+      
+      // 创建上传任务数组，每个任务都包含原始索引信息
+      const uploadTasks = imageBlobs.map(async (imageBlob, index) => {
         try {
-          console.log(`\n🔄 正在处理第${i + 1}张图片 (${i + 1}/${imageBlobs.length}): ${imageBlobs[i].filename}`);
-          console.log(`📊 当前图片信息: 大小 ${(imageBlobs[i].size / 1024).toFixed(2)}KB, 类型 ${imageBlobs[i].type}`);
+          console.log(`\n🔄 准备上传第${index + 1}张图片: ${imageBlob.filename}`);
+          console.log(`📊 图片${index + 1}信息: 大小 ${(imageBlob.size / 1024).toFixed(2)}KB, 类型 ${imageBlob.type}`);
           
           // 【调试】接收到的base64数据信息
-          console.log(`=== 第${i + 1}张图片 接收到的Base64数据 ===`);
-          console.log(`图片${i + 1} 接收到的Base64 (前100字符):`, imageBlobs[i].data.substring(0, 100));
-          console.log(`图片${i + 1} 接收到的Base64长度:`, imageBlobs[i].data.length);
-          console.log(`图片${i + 1} 图片类型:`, imageBlobs[i].type, '大小:', (imageBlobs[i].size / 1024).toFixed(2), 'KB');
+          console.log(`=== 第${index + 1}张图片 接收到的Base64数据 ===`);
+          console.log(`图片${index + 1} 接收到的Base64 (前100字符):`, imageBlob.data.substring(0, 100));
+          console.log(`图片${index + 1} 接收到的Base64长度:`, imageBlob.data.length);
+          console.log(`图片${index + 1} 图片类型:`, imageBlob.type, '大小:', (imageBlob.size / 1024).toFixed(2), 'KB');
           
           // 将base64转换为Blob
-          const blob = base64ToBlob(imageBlobs[i].data, imageBlobs[i].type);
+          const blob = base64ToBlob(imageBlob.data, imageBlob.type);
           
           // 【调试】转换后的Blob信息
-          console.log(`=== 第${i + 1}张图片 Base64转换为Blob后 ===`);
-          console.log(`图片${i + 1} 转换后的Blob 类型:`, blob.type, '大小:', (blob.size / 1024).toFixed(2), 'KB');
+          console.log(`=== 第${index + 1}张图片 Base64转换为Blob后 ===`);
+          console.log(`图片${index + 1} 转换后的Blob 类型:`, blob.type, '大小:', (blob.size / 1024).toFixed(2), 'KB');
           
           // 验证转换后的Blob大小是否合理
-          if (blob.size !== imageBlobs[i].size) {
-            console.warn(`⚠️ 图片${i + 1} 转换后大小不匹配！原始: ${imageBlobs[i].size}, 转换后: ${blob.size}`);
+          if (blob.size !== imageBlob.size) {
+            console.warn(`⚠️ 图片${index + 1} 转换后大小不匹配！原始: ${imageBlob.size}, 转换后: ${blob.size}`);
           } else {
-            console.log(`✅ 图片${i + 1} Base64转Blob成功，大小匹配`);
+            console.log(`✅ 图片${index + 1} Base64转Blob成功，大小匹配`);
           }
           
           // 【调试】再次验证转换后的Blob的base64
           const verifyBase64 = await blobToBase64(blob);
-          const isIdentical = verifyBase64 === imageBlobs[i].data;
-          console.log(`图片${i + 1} 转换验证 - Base64是否一致:`, isIdentical);
+          const isIdentical = verifyBase64 === imageBlob.data;
+          console.log(`图片${index + 1} 转换验证 - Base64是否一致:`, isIdentical);
           if (!isIdentical) {
-            console.warn(`⚠️ 图片${i + 1} Base64转换过程中可能出现问题！`);
-            console.log(`原始Base64长度: ${imageBlobs[i].data.length}, 验证Base64长度: ${verifyBase64.length}`);
+            console.warn(`⚠️ 图片${index + 1} Base64转换过程中可能出现问题！`);
+            console.log(`原始Base64长度: ${imageBlob.data.length}, 验证Base64长度: ${verifyBase64.length}`);
           }
           
-          console.log(`📤 正在上传第${i + 1}张图片到飞书 (按顺序上传)...`);
+          console.log(`📤 正在上传第${index + 1}张图片到飞书 (并发上传)...`);
           
-          // 【关键】按顺序上传到飞书，等待当前图片上传完成再处理下一张
-          const fileToken = await uploadImageToFeishu(accessToken, blob, imageBlobs[i].filename, parentNode);
+          // 上传到飞书
+          const fileToken = await uploadImageToFeishu(accessToken, blob, imageBlob.filename, parentNode);
           
-          // 【关键】按照原始顺序添加到附件数组
-          imageAttachments.push({
+          // 返回包含原始索引的结果
+          return {
+            success: true,
+            originalIndex: index,
             file_token: fileToken,
-            // 添加额外信息用于调试和验证顺序
-            originalIndex: i,
-            filename: imageBlobs[i].filename,
-            originalUrl: imageBlobs[i].originalUrl
-          });
-          
-          console.log(`✅ 第${i + 1}张图片上传成功，文件名: ${imageBlobs[i].filename}`);
-          console.log(`📋 当前已上传图片数量: ${imageAttachments.length}/${imageBlobs.length}`);
-          
-          // 添加短暂延迟，确保服务器有时间处理
-          if (i < imageBlobs.length - 1) {
-            console.log('⏳ 等待500ms后处理下一张图片...');
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
+            filename: imageBlob.filename,
+            originalUrl: imageBlob.originalUrl
+          };
           
         } catch (error) {
-          console.error(`❌ 处理第${i + 1}张图片失败:`, error);
-          console.log(`⚠️ 第${i + 1}张图片处理失败，跳过此图片但继续处理下一张`);
-          // 【修复】失败的图片不添加到附件数组中，保持成功图片的相对顺序
-          // 继续处理下一张图片，不中断整个流程
+          console.error(`❌ 上传第${index + 1}张图片失败:`, error);
+          
+          // 返回失败结果，但保持原始索引
+          return {
+            success: false,
+            originalIndex: index,
+            filename: imageBlob.filename,
+            originalUrl: imageBlob.originalUrl,
+            error: error.message
+          };
         }
-      }
-      
-      // 【调试】打印最终的附件顺序
-      console.log('\n📋 最终图片上传顺序验证:');
-      imageAttachments.forEach((attachment, index) => {
-        const status = attachment.failed ? '❌ 失败' : '✅ 成功';
-        console.log(`${index + 1}. ${attachment.filename} - ${status} (原始位置: ${attachment.originalIndex + 1})`);
       });
       
-      // 【修复】过滤掉失败的图片，只保留成功上传的，但保持原有顺序
-      const successfulAttachments = imageAttachments.filter(attachment => !attachment.failed);
-      console.log(`\n📊 上传结果统计: ${successfulAttachments.length}/${imageBlobs.length} 张图片成功上传`);
+      // 【关键】使用Promise.all等待所有上传任务完成
+      console.log(`⏳ 等待所有 ${uploadTasks.length} 张图片并发上传完成...`);
+      const uploadResults = await Promise.all(uploadTasks);
       
-      // 【关键修复】确保最终的附件数组保持原有顺序
-      imageAttachments = successfulAttachments.map(attachment => ({
-        file_token: attachment.file_token
+      // 【关键】按原始索引顺序排序结果，确保顺序正确
+      const sortedResults = uploadResults.sort((a, b) => a.originalIndex - b.originalIndex);
+      
+      // 【调试】打印上传结果和顺序验证
+      console.log('\n📋 图片上传结果顺序验证:');
+      sortedResults.forEach((result, index) => {
+        const status = result.success ? '✅ 成功' : '❌ 失败';
+        console.log(`${index + 1}. ${result.filename} - ${status} (原始位置: ${result.originalIndex + 1})`);
+        if (result.success) {
+          console.log(`   file_token: ${result.file_token}`);
+        } else {
+          console.log(`   错误: ${result.error}`);
+        }
+      });
+      
+      // 过滤出成功上传的图片
+      const successfulResults = sortedResults.filter(result => result.success);
+      console.log(`\n📊 上传结果统计: ${successfulResults.length}/${imageBlobs.length} 张图片成功上传`);
+      
+      // 【关键】按顺序构建最终的附件数组
+      imageAttachments = successfulResults.map(result => ({
+        file_token: result.file_token
       }));
       
       // 【调试】打印最终附件的file_token顺序
