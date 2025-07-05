@@ -121,44 +121,88 @@ async function extractImages() {
   const imageUrls = [];
   
   try {
-    // 方法1: 根据正确的层级结构提取图片 - 按swiper-slide的顺序提取
-    const slideElements = document.querySelectorAll('.slider-container .swiper-slide');
+    // 【关键修复】按照您指定的DOM结构顺序提取图片
+    // 查询：.swiper .swiper-wrapper 下所有子节点的 .swiper-slide .img-container img
+    const swiperWrapper = document.querySelector('.swiper .swiper-wrapper');
     
-    if (slideElements.length > 0) {
-      console.log('通过方法1找到轮播图元素:', slideElements.length, '张');
+    if (swiperWrapper) {
+      console.log('找到轮播容器 .swiper .swiper-wrapper');
       
-      // 【关键修复】按照slide的顺序遍历，确保提取顺序正确
-      slideElements.forEach((slide, index) => {
-        // 优先从img元素中提取
-        const img = slide.querySelector('.img-container img') || slide.querySelector('img');
-        if (img) {
-          const src = img.src || img.getAttribute('src');
-          if (src && !imageUrls.includes(src)) {
-            // 提取原图URL，去掉缩略图后缀
-            const originalUrl = src;
-            imageUrls.push(originalUrl);
-            console.log(`图片${index + 1} (从img元素):`, originalUrl);
-            return; // 找到img就不需要再检查background
+      // 获取所有直接子节点（保持DOM顺序）
+      const childNodes = Array.from(swiperWrapper.children);
+      console.log('轮播容器子节点数量:', childNodes.length);
+      
+      // 按照DOM顺序遍历每个子节点
+      childNodes.forEach((childNode, index) => {
+        // 检查是否是 swiper-slide
+        if (childNode.classList && childNode.classList.contains('swiper-slide')) {
+          // 在 swiper-slide 中查找 .img-container img
+          const img = childNode.querySelector('.img-container img');
+          
+          if (img) {
+            const src = img.src || img.getAttribute('src');
+            if (src && !imageUrls.includes(src)) {
+              // 提取原图URL，去掉缩略图后缀
+              const originalUrl = src.replace(/!.*$/, '');
+              imageUrls.push(originalUrl);
+              console.log(`图片${index + 1} (DOM顺序第${index + 1}个子节点):`, originalUrl);
+              console.log(`  - 节点类名:`, childNode.className);
+              console.log(`  - 图片路径:`, img.src);
+            }
+          } else {
+            console.log(`第${index + 1}个swiper-slide中未找到 .img-container img`);
           }
-        }
-        
-        // 如果没有img元素，尝试从背景样式中提取
-        const style = slide.getAttribute('style');
-        if (style) {
-          const urlMatch = style.match(/url\("([^"]+)"\)/);
-          if (urlMatch && urlMatch[1] && !imageUrls.includes(urlMatch[1])) {
-            // 提取原图URL，去掉缩略图后缀
-            const originalUrl = urlMatch[1].replace(/!.*$/, '');
-            imageUrls.push(originalUrl);
-            console.log(`图片${index + 1} (从背景样式):`, originalUrl);
-          }
+        } else {
+          console.log(`第${index + 1}个子节点不是swiper-slide:`, childNode.className || childNode.tagName);
         }
       });
+      
+      console.log(`通过新方法提取到 ${imageUrls.length} 张图片`);
+    } else {
+      console.log('未找到 .swiper .swiper-wrapper 容器');
     }
     
-    // 方法2: 备用方案 - 如果方法1没有找到图片，尝试其他选择器
+    // 备用方案1: 如果上面的方法没有找到图片，尝试其他可能的结构
     if (imageUrls.length === 0) {
-      console.log('方法1未找到图片，尝试方法2（兼容旧版本）');
+      console.log('尝试备用方案1: .slider-container .swiper-slide');
+      const slideElements = document.querySelectorAll('.slider-container .swiper-slide');
+      
+      if (slideElements.length > 0) {
+        console.log('通过备用方案1找到轮播图元素:', slideElements.length, '张');
+        
+        // 【关键修复】按照slide的顺序遍历，确保提取顺序正确
+        slideElements.forEach((slide, index) => {
+          // 优先从img元素中提取
+          const img = slide.querySelector('.img-container img') || slide.querySelector('img');
+          if (img) {
+            const src = img.src || img.getAttribute('src');
+            if (src && !imageUrls.includes(src)) {
+              // 提取原图URL，去掉缩略图后缀
+              const originalUrl = src;
+              imageUrls.push(originalUrl);
+              console.log(`图片${index + 1} (从img元素):`, originalUrl);
+              return; // 找到img就不需要再检查background
+            }
+          }
+          
+          // 如果没有img元素，尝试从背景样式中提取
+          const style = slide.getAttribute('style');
+          if (style) {
+            const urlMatch = style.match(/url\("([^"]+)"\)/);
+            if (urlMatch && urlMatch[1] && !imageUrls.includes(urlMatch[1])) {
+              // 提取原图URL，去掉缩略图后缀
+              const originalUrl = urlMatch[1].replace(/!.*$/, '');
+              imageUrls.push(originalUrl);
+              console.log(`图片${index + 1} (从背景样式):`, originalUrl);
+            }
+          }
+        });
+      }
+    }
+    
+    // 备用方案2: 如果方法1没有找到图片，尝试其他选择器
+    if (imageUrls.length === 0) {
+      console.log('尝试备用方案2: .swiper-wrapper .swiper-slide img.note-slider-img');
       const fallbackImgElements = document.querySelectorAll('.swiper-wrapper .swiper-slide img.note-slider-img');
       
       fallbackImgElements.forEach((img, index) => {
@@ -171,9 +215,9 @@ async function extractImages() {
       });
     }
     
-    // 方法3: 通用方案 - 从所有小红书CDN图片中提取（最后的备用方案）
+    // 备用方案3: 通用方案 - 从所有小红书CDN图片中提取（最后的备用方案）
     if (imageUrls.length === 0) {
-      console.log('前面方法都未找到图片，尝试通用方案');
+      console.log('尝试备用方案3: 通用方案');
       const allImages = document.querySelectorAll('img[src*="xhscdn.com"]');
       allImages.forEach((img, index) => {
         const src = img.src || img.getAttribute('src');
