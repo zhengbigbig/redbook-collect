@@ -361,47 +361,107 @@ function loadImageAsBlob(imageUrl) {
   return new Promise((resolve, reject) => {
     console.log('开始加载图片:', imageUrl);
     
-    // 策略1: 直接使用页面上已存在的图片元素
-    const existingImg = Array.from(document.querySelectorAll('img')).find(img => 
-      img.src && (img.src === imageUrl || img.src.includes(imageUrl.split('/').pop()))
-    );
-    
-    if (existingImg && existingImg.complete && existingImg.naturalWidth > 0) {
-      console.log('使用页面已存在的图片元素');
-      try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = existingImg.naturalWidth;
-        canvas.height = existingImg.naturalHeight;
-        
-        // 【调试】在绘制图片前，打印canvas信息
-        console.log(`Canvas准备绘制 - 尺寸: ${canvas.width}x${canvas.height}`);
-        console.log(`原图尺寸: ${existingImg.naturalWidth}x${existingImg.naturalHeight}`);
-        
-        ctx.drawImage(existingImg, 0, 0);
-        
-        // 【调试】绘制后，先获取canvas的base64进行检查
-        const canvasDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        const canvasBase64 = canvasDataUrl.split(',')[1];
-        console.log('=== Canvas绘制完成后的base64 ===');
-        console.log('Canvas Base64 (前100字符):', canvasBase64.substring(0, 100));
-        console.log('Canvas Base64长度:', canvasBase64.length);
-        
-        canvas.toBlob((blob) => {
-          if (blob) {
-            console.log('从已存在图片转换blob成功:', (blob.size / 1024).toFixed(2), 'KB');
-            resolve(blob);
-          } else {
-            console.log('从已存在图片转换blob失败，尝试其他方案');
-            tryLoadNewImage();
+    // 【新增】策略0: 尝试从页面中找到已加载的图片
+    function tryExtractFromPage() {
+      console.log('尝试从页面中提取已加载的图片');
+      
+      // 查找页面中所有的img元素
+      const pageImages = document.querySelectorAll('img');
+      
+      for (let img of pageImages) {
+        const imgSrc = img.src || img.getAttribute('src');
+        if (imgSrc && (imgSrc === imageUrl || imgSrc.includes(imageUrl.split('/').pop()))) {
+          console.log('找到页面中的匹配图片:', imgSrc);
+          
+          // 检查图片是否已经加载完成
+          if (img.complete && img.naturalWidth > 0) {
+            console.log('页面图片已加载完成，尝试转换为blob');
+            
+            try {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              
+              console.log(`页面图片 Canvas准备绘制 - 尺寸: ${canvas.width}x${canvas.height}`);
+              
+              ctx.drawImage(img, 0, 0);
+              
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  console.log('✅ 页面图片转blob成功:', (blob.size / 1024).toFixed(2), 'KB');
+                  resolve(blob);
+                  return;
+                } else {
+                  console.log('❌ 页面图片转blob失败，尝试其他方案');
+                  tryLoadExistingImage();
+                }
+              }, 'image/jpeg', 0.9);
+              
+              return; // 找到匹配的图片就返回
+            } catch (error) {
+              console.error('❌ 页面图片canvas处理失败:', error);
+            }
           }
-        }, 'image/jpeg', 0.9);
+        }
+      }
+      
+      console.log('页面中未找到匹配的已加载图片，尝试其他方案');
+      tryLoadExistingImage();
+    }
+    
+    // 策略1: 尝试使用已存在的图片元素
+    function tryLoadExistingImage() {
+      console.log('尝试使用已存在的图片元素');
+      
+      try {
+        // 尝试找到页面中已经存在的图片元素
+        const existingImg = document.querySelector(`img[src="${imageUrl}"], img[src*="${imageUrl.split('/').pop()}"]`);
+        
+        if (existingImg && existingImg.complete && existingImg.naturalWidth > 0) {
+          console.log('找到已存在的图片元素，尺寸:', existingImg.naturalWidth, 'x', existingImg.naturalHeight);
+          
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = existingImg.naturalWidth;
+          canvas.height = existingImg.naturalHeight;
+          
+          // 【调试】在绘制图片前，打印canvas信息
+          console.log(`已存在图片 Canvas准备绘制 - 尺寸: ${canvas.width}x${canvas.height}`);
+          
+          ctx.drawImage(existingImg, 0, 0);
+          
+          // 【调试】绘制后，先获取canvas的base64进行检查
+          const canvasDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          const canvasBase64 = canvasDataUrl.split(',')[1];
+          console.log('=== 已存在图片 Canvas绘制完成后的base64 ===');
+          console.log('已存在图片 Canvas Base64 (前100字符):', canvasBase64.substring(0, 100));
+          console.log('已存在图片 Canvas Base64长度:', canvasBase64.length);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              console.log('✅ 已存在图片转blob成功:', (blob.size / 1024).toFixed(2), 'KB');
+              resolve(blob);
+            } else {
+              console.log('❌ 已存在图片转blob失败，尝试其他方案');
+              tryLoadNewImage();
+            }
+          }, 'image/jpeg', 0.9);
+          
+          return;
+        }
+        
+        console.log('未找到合适的已存在图片元素');
         
         return;
       } catch (error) {
-        console.log('使用已存在图片失败，尝试其他方案:', error);
+        console.log('❌ 使用已存在图片失败，尝试其他方案:', error);
       }
+      
+      // 如果没有找到或处理失败，继续其他策略
+      tryLoadNewImage();
     }
     
     // 策略2: 创建新的img元素加载
@@ -480,13 +540,43 @@ function loadImageAsBlob(imageUrl) {
     function tryProxyImage() {
       console.log('尝试URL变换方案');
       
-      // 尝试不同的URL变换
+      // 【增强】更全面的URL变换策略
       const urlVariants = [
         imageUrl,
         imageUrl.replace(/!.*$/, ''), // 移除所有参数
-        imageUrl + '?imageMogr2/auto-orient/strip', // 添加处理参数
-        imageUrl.replace('sns-webpic-qc', 'sns-webpic'), // 尝试不同的CDN节点
-        imageUrl.replace('https://', 'http://'), // 尝试http
+        
+        // 尝试不同的CDN节点
+        imageUrl.replace('sns-webpic-qc.xhscdn.com', 'sns-webpic.xhscdn.com'),
+        imageUrl.replace('sns-webpic.xhscdn.com', 'sns-webpic-qc.xhscdn.com'),
+        imageUrl.replace('sns-webpic-qc.xhscdn.com', 'ci.xiaohongshu.com'),
+        imageUrl.replace('sns-webpic.xhscdn.com', 'ci.xiaohongshu.com'),
+        
+        // 尝试不同的协议
+        imageUrl.replace('https://', 'http://'),
+        imageUrl.replace('http://', 'https://'),
+        
+        // 尝试添加不同的图片处理参数
+        imageUrl.replace(/!.*$/, '') + '?imageView2/2/w/1080/format/jpg',
+        imageUrl.replace(/!.*$/, '') + '?imageMogr2/auto-orient/strip',
+        imageUrl.replace(/!.*$/, '') + '?x-oss-process=image/format,jpg',
+        
+        // 尝试直接访问原图
+        imageUrl.replace(/!.*$/, '') + '?imageView2/0/w/1080',
+        imageUrl.replace(/!.*$/, '') + '?imageView2/1/w/1080/h/1080',
+        
+        // 尝试不同的域名组合
+        imageUrl.replace('sns-webpic-qc.xhscdn.com', 'sns-img-qc.xhscdn.com'),
+        imageUrl.replace('sns-webpic.xhscdn.com', 'sns-img.xhscdn.com'),
+        imageUrl.replace('sns-webpic-qc.xhscdn.com', 'sns-avatar-qc.xhscdn.com'),
+        imageUrl.replace('sns-webpic.xhscdn.com', 'sns-avatar.xhscdn.com'),
+        
+        // 尝试旧版本的CDN
+        imageUrl.replace('sns-webpic-qc.xhscdn.com', 'picasso-static.xiaohongshu.com'),
+        imageUrl.replace('sns-webpic.xhscdn.com', 'picasso-static.xiaohongshu.com'),
+        
+        // 最后尝试通过代理的方式（如果有的话）
+        `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl.replace('https://', ''))}`,
+        `https://imageproxy.pimg.tw/resize?url=${encodeURIComponent(imageUrl)}`,
       ];
       
       let currentIndex = 0;
@@ -494,14 +584,17 @@ function loadImageAsBlob(imageUrl) {
       function tryNextVariant() {
         if (currentIndex >= urlVariants.length) {
           console.log('所有URL变换都失败了');
-          reject(new Error('所有图片加载策略都失败了'));
+          
+          // 【新增】最后尝试使用fetch + blob的方式
+          console.log('尝试最后的fetch方案');
+          tryFetchBlob();
           return;
         }
         
         const variantUrl = urlVariants[currentIndex];
         currentIndex++;
         
-        console.log('尝试URL变换:', variantUrl);
+        console.log(`尝试URL变换 (${currentIndex}/${urlVariants.length}):`, variantUrl);
         
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -513,7 +606,7 @@ function loadImageAsBlob(imageUrl) {
           if (resolved) return;
           resolved = true;
           
-          console.log('URL变换成功:', variantUrl);
+          console.log('✅ URL变换成功:', variantUrl);
           
           try {
             const canvas = document.createElement('canvas');
@@ -536,15 +629,16 @@ function loadImageAsBlob(imageUrl) {
             
             canvas.toBlob((blob) => {
               if (blob) {
-                console.log('URL变换转blob成功:', (blob.size / 1024).toFixed(2), 'KB');
+                console.log('✅ URL变换转blob成功:', (blob.size / 1024).toFixed(2), 'KB');
                 resolve(blob);
               } else {
+                console.log('❌ URL变换转blob失败，尝试下一个');
                 tryNextVariant();
               }
             }, 'image/jpeg', 0.9);
             
           } catch (error) {
-            console.error('URL变换canvas处理失败:', error);
+            console.error('❌ URL变换canvas处理失败:', error);
             tryNextVariant();
           }
         };
@@ -552,26 +646,83 @@ function loadImageAsBlob(imageUrl) {
         img.onerror = function() {
           if (resolved) return;
           resolved = true;
-          console.log('URL变换失败:', variantUrl);
+          console.log('❌ URL变换失败:', variantUrl);
           tryNextVariant();
         };
         
         setTimeout(() => {
           if (!resolved) {
             resolved = true;
-            console.log('URL变换超时:', variantUrl);
+            console.log('⏰ URL变换超时:', variantUrl);
             tryNextVariant();
           }
-        }, 10000);
+        }, 8000); // 减少超时时间，加快尝试速度
         
         img.src = variantUrl;
+      }
+      
+      // 【新增】最后的fetch方案
+      function tryFetchBlob() {
+        console.log('尝试fetch方案获取图片');
+        
+        const fetchUrls = [
+          imageUrl,
+          imageUrl.replace(/!.*$/, ''),
+          imageUrl.replace('sns-webpic-qc.xhscdn.com', 'sns-webpic.xhscdn.com'),
+          imageUrl.replace('sns-webpic.xhscdn.com', 'sns-webpic-qc.xhscdn.com'),
+        ];
+        
+        let fetchIndex = 0;
+        
+        function tryFetchNext() {
+          if (fetchIndex >= fetchUrls.length) {
+            console.log('❌ 所有fetch方案都失败了');
+            reject(new Error('所有图片加载策略都失败了'));
+            return;
+          }
+          
+          const fetchUrl = fetchUrls[fetchIndex];
+          fetchIndex++;
+          
+          console.log(`尝试fetch (${fetchIndex}/${fetchUrls.length}):`, fetchUrl);
+          
+          fetch(fetchUrl, {
+            method: 'GET',
+            headers: {
+              'Referer': 'https://www.xiaohongshu.com/',
+              'User-Agent': navigator.userAgent,
+            },
+            mode: 'cors',
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.blob();
+          })
+          .then(blob => {
+            if (blob && blob.size > 0) {
+              console.log('✅ fetch方案成功:', (blob.size / 1024).toFixed(2), 'KB');
+              resolve(blob);
+            } else {
+              console.log('❌ fetch返回空blob，尝试下一个');
+              tryFetchNext();
+            }
+          })
+          .catch(error => {
+            console.log('❌ fetch失败:', error.message);
+            tryFetchNext();
+          });
+        }
+        
+        tryFetchNext();
       }
       
       tryNextVariant();
     }
     
     // 开始第一种策略
-    tryLoadNewImage();
+    tryExtractFromPage();
   });
 }
 
