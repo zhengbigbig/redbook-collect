@@ -84,50 +84,73 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
       console.log('开始处理图片Base64数据，共', imageBlobs.length, '张');
       console.log('📋 图片处理顺序:', imageBlobs.map((blob, index) => `${index + 1}. ${blob.filename}`));
       
-      // 【关键修改】使用Promise.all并发上传图片，但保持顺序
+      // 【关键修改】使用Promise.all并发上传图片，但保持顺序，并添加重试机制
       console.log('🚀 开始并发上传图片到飞书...');
       
-      // 创建上传任务数组，每个任务都包含原始索引信息
+      // 创建上传任务数组，每个任务都包含原始索引信息和重试机制
       const uploadTasks = imageBlobs.map(async (imageBlob, index) => {
+        // 【新增】图片上传重试函数
+        const uploadWithRetry = async (blob, filename, retryCount = 0) => {
+          const maxRetries = 3;
+          try {
+            console.log(`📤 正在上传第${index + 1}张图片: ${filename} (第${retryCount + 1}次尝试)`);
+            
+            // 【调试】接收到的base64数据信息
+            console.log(`=== 第${index + 1}张图片 第${retryCount + 1}次上传尝试 ===`);
+            console.log(`图片${index + 1} 接收到的Base64 (前100字符):`, blob.data.substring(0, 100));
+            console.log(`图片${index + 1} 接收到的Base64长度:`, blob.data.length);
+            console.log(`图片${index + 1} 图片类型:`, blob.type, '大小:', (blob.size / 1024).toFixed(2), 'KB');
+            
+            // 将base64转换为Blob
+            const blobData = base64ToBlob(blob.data, blob.type);
+            
+            // 【调试】转换后的Blob信息
+            console.log(`=== 第${index + 1}张图片 Base64转换为Blob后 ===`);
+            console.log(`图片${index + 1} 转换后的Blob 类型:`, blobData.type, '大小:', (blobData.size / 1024).toFixed(2), 'KB');
+            
+            // 验证转换后的Blob大小是否合理
+            if (blobData.size !== blob.size) {
+              console.warn(`⚠️ 图片${index + 1} 转换后大小不匹配！原始: ${blob.size}, 转换后: ${blobData.size}`);
+            } else {
+              console.log(`✅ 图片${index + 1} Base64转Blob成功，大小匹配`);
+            }
+            
+            // 【调试】再次验证转换后的Blob的base64
+            const verifyBase64 = await blobToBase64(blobData);
+            const isIdentical = verifyBase64 === blob.data;
+            console.log(`图片${index + 1} 转换验证 - Base64是否一致:`, isIdentical);
+            if (!isIdentical) {
+              console.warn(`⚠️ 图片${index + 1} Base64转换过程中可能出现问题！`);
+              console.log(`原始Base64长度: ${blob.data.length}, 验证Base64长度: ${verifyBase64.length}`);
+            }
+            
+            // 上传到飞书
+            const fileToken = await uploadImageToFeishu(accessToken, blobData, filename, parentNode);
+            
+            console.log(`✅ 第${index + 1}张图片上传成功 (第${retryCount + 1}次尝试)`);
+            return fileToken;
+            
+          } catch (error) {
+            console.error(`❌ 第${index + 1}张图片上传失败 (第${retryCount + 1}次尝试):`, error);
+            
+            // 【重试逻辑】如果还有重试次数，则重试
+            if (retryCount < maxRetries) {
+              const waitTime = Math.pow(2, retryCount) * 1000; // 指数退避：1s, 2s, 4s
+              console.log(`🔄 第${index + 1}张图片将在${waitTime}ms后进行第${retryCount + 2}次重试...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              return uploadWithRetry(blob, filename, retryCount + 1);
+            } else {
+              // 达到最大重试次数，抛出错误
+              console.error(`❌ 第${index + 1}张图片上传失败，已达到最大重试次数(${maxRetries + 1}次)`);
+              throw error;
+            }
+          }
+        };
+        
         try {
-          console.log(`\n🔄 准备上传第${index + 1}张图片: ${imageBlob.filename}`);
-          console.log(`📊 图片${index + 1}信息: 大小 ${(imageBlob.size / 1024).toFixed(2)}KB, 类型 ${imageBlob.type}`);
+          const fileToken = await uploadWithRetry(imageBlob, imageBlob.filename);
           
-          // 【调试】接收到的base64数据信息
-          console.log(`=== 第${index + 1}张图片 接收到的Base64数据 ===`);
-          console.log(`图片${index + 1} 接收到的Base64 (前100字符):`, imageBlob.data.substring(0, 100));
-          console.log(`图片${index + 1} 接收到的Base64长度:`, imageBlob.data.length);
-          console.log(`图片${index + 1} 图片类型:`, imageBlob.type, '大小:', (imageBlob.size / 1024).toFixed(2), 'KB');
-          
-          // 将base64转换为Blob
-          const blob = base64ToBlob(imageBlob.data, imageBlob.type);
-          
-          // 【调试】转换后的Blob信息
-          console.log(`=== 第${index + 1}张图片 Base64转换为Blob后 ===`);
-          console.log(`图片${index + 1} 转换后的Blob 类型:`, blob.type, '大小:', (blob.size / 1024).toFixed(2), 'KB');
-          
-          // 验证转换后的Blob大小是否合理
-          if (blob.size !== imageBlob.size) {
-            console.warn(`⚠️ 图片${index + 1} 转换后大小不匹配！原始: ${imageBlob.size}, 转换后: ${blob.size}`);
-          } else {
-            console.log(`✅ 图片${index + 1} Base64转Blob成功，大小匹配`);
-          }
-          
-          // 【调试】再次验证转换后的Blob的base64
-          const verifyBase64 = await blobToBase64(blob);
-          const isIdentical = verifyBase64 === imageBlob.data;
-          console.log(`图片${index + 1} 转换验证 - Base64是否一致:`, isIdentical);
-          if (!isIdentical) {
-            console.warn(`⚠️ 图片${index + 1} Base64转换过程中可能出现问题！`);
-            console.log(`原始Base64长度: ${imageBlob.data.length}, 验证Base64长度: ${verifyBase64.length}`);
-          }
-          
-          console.log(`📤 正在上传第${index + 1}张图片到飞书 (并发上传)...`);
-          
-          // 上传到飞书
-          const fileToken = await uploadImageToFeishu(accessToken, blob, imageBlob.filename, parentNode);
-          
-          // 返回包含原始索引的结果
+          // 返回包含原始索引的成功结果
           return {
             success: true,
             originalIndex: index,
@@ -137,7 +160,7 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
           };
           
         } catch (error) {
-          console.error(`❌ 上传第${index + 1}张图片失败:`, error);
+          console.error(`❌ 第${index + 1}张图片最终上传失败:`, error);
           
           // 返回失败结果，但保持原始索引
           return {
@@ -169,11 +192,31 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
         }
       });
       
-      // 过滤出成功上传的图片
+      // 过滤出成功和失败的结果
       const successfulResults = sortedResults.filter(result => result.success);
+      const failedResults = sortedResults.filter(result => !result.success);
+      
       console.log(`\n📊 上传结果统计: ${successfulResults.length}/${imageBlobs.length} 张图片成功上传`);
       
-      // 【关键】按顺序构建最终的附件数组
+      // 【新增】如果有失败的图片，弹窗确认
+      if (failedResults.length > 0) {
+        console.log(`⚠️ 存在 ${failedResults.length} 张图片上传失败:`);
+        failedResults.forEach((result, index) => {
+          console.log(`${index + 1}. ${result.filename} - ${result.error}`);
+        });
+        
+        // 弹窗确认是否继续提交
+        const userConfirmed = confirm(`存在 ${failedResults.length} 张图片上传失败，是否直接写入到飞书表格？\n\n失败的图片:\n${failedResults.map(r => `• ${r.filename}`).join('\n')}\n\n点击"确定"继续提交，点击"取消"返回采集页面。`);
+        
+        if (!userConfirmed) {
+          console.log('用户选择取消，返回采集页面');
+          throw new Error('用户取消提交，存在图片上传失败');
+        } else {
+          console.log('用户选择继续提交，忽略失败的图片');
+        }
+      }
+      
+      // 【关键】按顺序构建最终的附件数组（只包含成功的图片）
       imageAttachments = successfulResults.map(result => ({
         file_token: result.file_token
       }));
@@ -200,7 +243,8 @@ async function processImageBlobsAndSubmitToFeishu(appToken, tableId, accessToken
     return {
       ...result,
       processedImages: imageAttachments.length,
-      totalImages: imageBlobs ? imageBlobs.length : 0
+      totalImages: imageBlobs ? imageBlobs.length : 0,
+      failedImages: imageBlobs ? imageBlobs.length - imageAttachments.length : 0
     };
     
   } catch (error) {
